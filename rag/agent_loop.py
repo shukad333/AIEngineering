@@ -50,28 +50,24 @@ IMPLS = {"search_docs": search_docs, "calculate": calculate}
 # 3. The loop
 def run_agent(question, max_steps=8):
     messages = [{"role": "user", "content": question}]
+    tools_used, tokens = [], 0
     for step in range(max_steps):
-        resp = client.messages.create(
-            model=MODEL, max_tokens=2000, tools=TOOLS, messages=messages,
-            system="Use tools when needed. Answer from tool results, and cite sources.",
-        )
+        resp = client.messages.create(model=MODEL, max_tokens=2000, tools=TOOLS,
+                                      messages=messages, system="...same as before...")
+        tokens += resp.usage.input_tokens + resp.usage.output_tokens
         messages.append({"role": "assistant", "content": resp.content})
-
         if resp.stop_reason != "tool_use":
-            return "".join(b.text for b in resp.content if b.type == "text")
-
+            text = "".join(b.text for b in resp.content if b.type == "text")
+            return {"answer": text, "tools": tools_used, "steps": step + 1, "tokens": tokens}
         results = []
         for b in resp.content:
             if b.type == "tool_use":
-                print(f"  [step {step}] {b.name}({json.dumps(b.input)})")
-                try:
-                    out = IMPLS[b.name](**b.input)
-                except Exception as e:
-                    out = f"Error: {e}"          # let the model see and recover
+                tools_used.append(b.name)
+                try:    out = IMPLS[b.name](**b.input)
+                except Exception as e: out = f"Error: {e}"
                 results.append({"type": "tool_result", "tool_use_id": b.id, "content": out})
         messages.append({"role": "user", "content": results})
-
-    return "Stopped: hit max_steps"
+    return {"answer": "", "tools": tools_used, "steps": max_steps, "tokens": tokens}
 
 if __name__ == "__main__":
     print(run_agent("XXX"))
