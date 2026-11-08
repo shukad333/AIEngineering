@@ -26,11 +26,13 @@ def answer(question, chunks):
     )
     return "".join(b.text for b in msg.content if b.type == "text")
 
-chunks = []
-for p in pathlib.Path("docs").glob("**/*"):
+chunks, meta = [], []
+for p in pathlib.Path("../docs").glob("**/*"):
     if p.suffix in {".md", ".txt"}:
-        chunks += chunk(p.read_text(errors="ignore"))
-print(len(chunks), "chunks")
+        text = p.read_text(errors="ignore")
+        for j, c in enumerate(chunk(text)):
+            chunks.append(c)
+            meta.append({"file": p.name, "chunk": j})
 
 vecs = embed(chunks)
 
@@ -38,3 +40,5 @@ def ask(q, k=4):
     q_vec = embed(["Represent this sentence for searching relevant passages: " + q])[0]
     idx = top_k(q_vec, vecs, k)
     print(answer(q, [chunks[i] for i in idx]))
+
+ask("Hello who is shuhail")
