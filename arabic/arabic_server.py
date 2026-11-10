@@ -62,5 +62,41 @@ def ask():
                   "score": round(float(s), 3)} for i, s in zip(idx, scores)],
     )
 
+
+from flask import Response, stream_with_context
+
+def sse(event, data):
+    return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+@app.post("/ask/stream")
+@limiter.limit("10/minute")
+def ask_stream():
+    data = request.get_json(silent=True) or {}
+    q = (data.get("question") or "").strip()
+    if not q:
+        return jsonify(error="question is required"), 400
+    k = min(int(data.get("k", 4)), 10)
+    idx, scores = rag.retrieve(q, k)
+
+    def gen():
+        t0 = time.perf_counter()
+        yield sse("sources", [{"file": rag.meta[i]["file"], "chunk": rag.meta[i]["chunk"],
+                               "score": round(float(s), 3)} for i, s in zip(idx, scores)])
+        first = True
+        for kind, val in rag.answer_stream(q, idx):
+            if kind == "text":
+                if first:
+                    log.info(json.dumps({"event": "first_token_ms",
+                                         "ms": round((time.perf_counter() - t0) * 1000)}))
+                    first = False
+                yield sse("token", {"t": val})
+            else:
+                log.info(json.dumps({"event": "ask_stream", "in_tokens": val.input_tokens,
+                                     "out_tokens": val.output_tokens}))
+        yield sse("done", {})
+
+    return Response(stream_with_context(gen()), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
 if __name__ == "__main__":
-    app.run(port=5000)
+    app.run(port=5001)

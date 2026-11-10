@@ -62,14 +62,28 @@ def answer(q, idx):
                "If the answer is not in the context, say so in that language.",
         messages=[{"role": "user", "content": f"<context>\n{ctx}\n</context>\n\nQuestion: {q}"}],
     )
-    return "".join(b.text for b in msg.content if b.type == "text")
+    return "".join(b.text for b in msg.content if b.type == "text"), msg.usage
 
 def ask(q, k=4):
     idx, scores = retrieve(q, k)
     for i, s in zip(idx, scores):
         print(f"{s:.3f} {meta[i]['file']}#{meta[i]['chunk']} | {chunks[i][:80]!r}")
-    print("\n" + answer(q, idx))
+    text, _ = answer(q, idx)
+    print("\n" + text)
 
-if __name__ == "__main__":
-    ask("ما هي عاصمة قطر؟")
-    ask("When did Doha Metro open?")   # English question, Arabic doc: cross-lingual
+def answer_stream(q, idx):
+    ctx = "\n\n".join(f"[{meta[i]['file']}#{meta[i]['chunk']}] {chunks[i]}" for i in idx)
+    with client.messages.stream(
+        model=MODEL, max_tokens=2000,
+        system="Answer only from the context, citing [file#chunk]. "
+               "Reply in the same language as the question. "
+               "If the answer is not in the context, say so in that language.",
+        messages=[{"role": "user", "content": f"<context>\n{ctx}\n</context>\n\nQuestion: {q}"}],
+    ) as stream:
+        for text in stream.text_stream:
+            yield ("text", text)
+        yield ("usage", stream.get_final_message().usage)
+
+# if __name__ == "__main__":
+#     ask("ما هي عاصمة قطر؟")
+#     ask("When did Doha Metro open?")   # English question, Arabic doc: cross-lingual
