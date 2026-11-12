@@ -20,6 +20,9 @@ def send_email(to, body):
 def schema(name, desc, props):
     return {"name": name, "description": desc,
             "input_schema": {"type": "object", "properties": props, "required": list(props)}}
+
+def auth(name):
+    pass
 S = {"type": "string"}
 TOOLS = {
     "lookup_customer": {"fn": lookup_customer, "risky": False,
@@ -27,6 +30,7 @@ TOOLS = {
     "send_email": {"fn": send_email, "risky": True,
                    "schema": schema("send_email", "Send an email to a customer.", {"to": S, "body": S})},
 }
+
 
 def run_tool(block):
     try:
