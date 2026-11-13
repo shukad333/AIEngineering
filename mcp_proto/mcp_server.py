@@ -1,6 +1,6 @@
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
-mcp = FastMCP("qatar-docs")
+mcp = MCPServer("qatar-docs")
 _rag = None
 
 def rag():
